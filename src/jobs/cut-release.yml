@@ -7,16 +7,16 @@ parameters:
   file:
     description: version file
     type: string
-    default: null
+    default: ""
   release-candidate:
     description: add a release-candidate flag to tag
     type: boolean
-    default: null
+    default: ""
   release-type:
     description: type of release (minor, patch)
     type: enum
     enum: ['major', 'minor', 'patch']
-    default: null
+    default: ""
   working-directory:
     type: string
     default: ~/workdir
