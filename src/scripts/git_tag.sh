@@ -1,12 +1,21 @@
 #!/bin/bash
 # shellcheck disable=SC2004
 
-infer_release_type_from_branch() {
-  # check environment
-  if [[ ! $CIRCLE_BRANCH ]]; then
-    echo "CIRCLE_BRANCH variable required for function infer_release_type_from_branch"
+check_environment() {
+  exit=false
+  for var in "$@"; do
+    if [[ ! ${!var} ]]; then
+      echo "$var variable required"
+      exit=true
+    fi
+  done
+  if $exit; then
     exit 1
   fi
+}
+
+infer_release_type_from_branch() {
+  check_environment "CIRCLE_BRANCH"
 
   if [[ $CIRCLE_BRANCH =~ hotfix|patch ]]; then
     RELEASE_TYPE="patch"
@@ -22,11 +31,7 @@ infer_release_type_from_branch() {
 }
 
 infer_is_release_candidate_from_branch() {
-  # check environment
-  if [[ ! $CIRCLE_BRANCH ]]; then
-    echo "CIRCLE_BRANCH variable required for function infer_is_release_candidate_from_branch"
-    exit 1
-  fi
+  check_environment "CIRCLE_BRANCH"
 
   IS_RELEASE_CANDIDATE=$([[ $CIRCLE_BRANCH =~ ^main|master$ ]] && echo false || echo true)
   echo "$IS_RELEASE_CANDIDATE"
@@ -39,14 +44,7 @@ infer_current_version() {
 }
 
 increment_current_version() {
-  # check environment
-  if [[ ! $CURRENT_VERSION ]]; then
-    echo "CURRENT_VERSION variable required for function increment_current_version"
-    exit 1
-  elif [[ ! $RELEASE_TYPE ]]; then
-    echo "RELEASE_TYPE variable required for function increment_current_version"
-    exit 1
-  fi
+  check_environment "CURRENT_VERSION" "RELEASE_TYPE"
 
   # parse version parts from regex
   TAG_REGEX='v?([0-9]+)\.([0-9]+)\.([0-9]+)'
@@ -74,10 +72,7 @@ increment_current_version() {
 }
 
 get_release_candidate() {
-  if [[ ! $NEXT_VERSION ]]; then
-    echo "NEXT_VERSION variable required for function get_release_candidate"
-    exit 1
-  fi
+  check_environment "NEXT_VERSION"
 
   for i in {1..999}; do
     RELEASE_CANDIDATE="$NEXT_VERSION-rc$i"
