@@ -1,19 +1,13 @@
 description: >
   cut a release
 parameters:
-  file:
-    description: version file
-    type: string
-    default: ''
-  release-candidate:
-    description: add a release-candidate flag (boolean) to tag
-    type: string
-    default: ''
+  is-release-candidate:
+    description: add a release-candidate (-rcX) flag to tag
+    type: boolean
   release-type:
     description: type of release (minor, patch)
     type: enum
-    enum: ['major', 'minor', 'patch', '']
-    default: ''
+    enum: ['major', 'minor', 'patch']
   working-directory:
     type: string
 steps:
@@ -22,8 +16,44 @@ steps:
   - checkout
   - run:
       name: Git Tag
-      environment:
-        RELEASE_TYPE: <<parameters.release-type>>
-        RELEASE_CANDIDATE: <<parameters.release-candidate>>
-        FILE: <<parameters.file>>
-      command: <<include(scripts/git_tag.sh)>>
+      command: |
+        # get current version
+        CURRENT_VERSION=$(git tag --merged | sort -V | tail -1)
+        CURRENT_VERSION=${CURRENT_VERSION:-v0.0.0}
+
+        # increment version
+        TAG_REGEX='v?([0-9]+)\.([0-9]+)\.([0-9]+)'
+        RELEASE_TYPE=<<parameters.release-type>>
+        if [[ "$CURRENT_VERSION" =~ $TAG_REGEX ]]; then
+          major=${BASH_REMATCH[1]}
+          minor=${BASH_REMATCH[2]}
+          patch=${BASH_REMATCH[3]}
+
+          # increment specified version part
+          if [[ $RELEASE_TYPE == "major" ]]; then
+            NEXT_VERSION="v$(($major+1)).0.0"
+          elif [[ $RELEASE_TYPE == "minor" ]]; then
+            NEXT_VERSION="v$major.$(($minor+1)).0"
+          elif [[ $RELEASE_TYPE == "patch" ]]; then
+            NEXT_VERSION="v$major.$minor.$(($patch+1))"
+          else
+            echo "Unknown release-type $RELEASE_TYPE. Please specify either ['major', 'minor', or 'patch']."
+            exit 1
+          fi
+        else
+          echo "Unable to parse version $CURRENT_VERSION with regex $TAG_REGEX"
+          exit 1
+        fi
+
+        # add release-candidate
+        if <<parameters.is-release-candidate>>; then
+          for i in {1..999}; do
+            RELEASE_CANDIDATE="$NEXT_VERSION-rc$i"
+            TAG_EXISTS=$(git tag --list "$RELEASE_CANDIDATE")
+            [[ ! $TAG_EXISTS ]] && break
+          done
+          NEXT_VERSION=$RELEASE_CANDIDATE
+        fi
+
+        # tag
+        git tag -m "Tagging $CIRCLE_BRANCH with $NEXT_VERSION" "$NEXT_VERSION"
