@@ -4,14 +4,18 @@ description: >
 executor: default
 
 parameters:
+  is-release-candidate:
+    description: add a release-candidate (-rcX) flag to tag
+    type: boolean
+    default: false
   release-type:
     description: type of release (minor, patch)
     type: enum
-    enum: ['minor', 'patch']
+    enum: ['major', 'minor', 'patch']
   working-directory:
     type: string
-    default: ~/workdir
 steps:
   - cut-release:
-      working-directory: <<parameters.working-directory>>
+      is-release-candidate: <<parameters.is-release-candidate>>
       release-type: <<parameters.release-type>>
+      working-directory: <<parameters.working-directory>>

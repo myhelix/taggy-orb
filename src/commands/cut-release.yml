@@ -1,10 +1,14 @@
 description: >
   cut a release
 parameters:
+  is-release-candidate:
+    description: add a release-candidate (-rcX) flag to tag
+    type: boolean
+    default: false
   release-type:
     description: type of release (minor, patch)
     type: enum
-    enum: ['minor', 'patch']
+    enum: ['major', 'minor', 'patch']
   working-directory:
     type: string
 steps:
@@ -12,19 +16,45 @@ steps:
       at: << parameters.working-directory >>
   - checkout
   - run:
-      name: Tag version and push tag
+      name: Git Tag
       command: |
-        LATESTTAG=$(git tag --merged | sort -V | tail -1)
-        LATESTTAG=${LATESTTAG:-v0.0.0}
-        echo "git branch is $(git branch --show-current)"
-        echo "Latest tag on branch: $LATESTTAG"
-        if [ <<parameters.release-type>> == "minor" ]; then
-          # Use awk to increment minor version and set patch version to 0
-          NEWTAG=$(echo "$LATESTTAG" | awk '/v/{split($1,v,/[.]/); $1=v[1]"."++v[2]"."0}1')
-        elif [ <<parameters.release-type>> == "patch" ]; then
-          # Use awk to increment patch version only
-          NEWTAG=$(echo "$LATESTTAG" | awk '/v/{split($1,v,/[.]/); $1=v[1]"."v[2]"."++v[3]}1')
+        # get current version
+        CURRENT_VERSION=$(git tag --merged | sort -V | tail -1)
+        CURRENT_VERSION=${CURRENT_VERSION:-v0.0.0}
+
+        # increment version
+        TAG_REGEX='v?([0-9]+)\.([0-9]+)\.([0-9]+)'
+        RELEASE_TYPE=<<parameters.release-type>>
+        if [[ "$CURRENT_VERSION" =~ $TAG_REGEX ]]; then
+          major=${BASH_REMATCH[1]}
+          minor=${BASH_REMATCH[2]}
+          patch=${BASH_REMATCH[3]}
+
+          # increment specified version part
+          if [[ $RELEASE_TYPE == "major" ]]; then
+            NEXT_VERSION="v$(($major+1)).0.0"
+          elif [[ $RELEASE_TYPE == "minor" ]]; then
+            NEXT_VERSION="v$major.$(($minor+1)).0"
+          elif [[ $RELEASE_TYPE == "patch" ]]; then
+            NEXT_VERSION="v$major.$minor.$(($patch+1))"
+          else
+            echo "Unknown release-type $RELEASE_TYPE. Please specify either ['major', 'minor', or 'patch']."
+            exit 1
+          fi
+        else
+          echo "Unable to parse version $CURRENT_VERSION with regex $TAG_REGEX"
+          exit 1
         fi
-        echo "New tag: $NEWTAG"
-        git tag "$NEWTAG"
-        git push --tags
+
+        # add release-candidate
+        if <<parameters.is-release-candidate>>; then
+          for i in {1..999}; do
+            RELEASE_CANDIDATE="$NEXT_VERSION-rc$i"
+            TAG_EXISTS=$(git tag --list "$RELEASE_CANDIDATE")
+            [[ ! $TAG_EXISTS ]] && break
+          done
+          NEXT_VERSION=$RELEASE_CANDIDATE
+        fi
+
+        # tag
+        git tag -m "Tagging $CIRCLE_BRANCH with $NEXT_VERSION" "$NEXT_VERSION"
