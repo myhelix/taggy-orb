@@ -4,6 +4,7 @@ parameters:
   is-release-candidate:
     description: add a release-candidate (-rcX) flag to tag
     type: boolean
+    default: false
   release-type:
     description: type of release (minor, patch)
     type: enum
